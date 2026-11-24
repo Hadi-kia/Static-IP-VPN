@@ -81,11 +81,12 @@ public class MainActivity extends Activity {
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setPadding(dp(16),dp(48),dp(16),dp(40)); scroll.addView(root);
         TextView title=label("VEPEN",32,Color.WHITE); title.setTypeface(null,Typeface.BOLD); root.addView(title);
-        root.addView(label("نسخه آموزشی ۰.۲.۰ • بدون موتور VPN",15,0xFF94A3B8));
+        root.addView(label("نسخه آموزشی ۰.۳.۰ • آزمایش محلی VPN",15,0xFF94A3B8));
         LinearLayout network=panel(root);
         status=label("تونل VPN: غیرفعال",19,0xFF38BDF8); network.addView(status);
         Button check=new Button(this); check.setText("بررسی اینترنت دستگاه"); check.setOnClickListener(v->checkNetwork()); network.addView(check);
         network.addView(label("IP ثابت: موجود نیست\nتغییر خودکار سرور و DNS: غیرفعال",15,Color.WHITE));
+        Button lab=new Button(this); lab.setText("آزمایش محلی VPN"); lab.setOnClickListener(v->startActivity(new Intent(this,LabActivity.class))); network.addView(lab);
         LinearLayout traffic=panel(root);
         traffic.addView(label("حجم مصرف اینترنت دستگاه",20,Color.WHITE));
         stats=label("",22,0xFF38BDF8); stats.setTextDirection(View.TEXT_DIRECTION_LTR); traffic.addView(stats);
