@@ -1,0 +1,58 @@
+name: Isolated network lab
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/network-lab.yml'
+permissions:
+  contents: read
+jobs:
+  local-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Install standard test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wireguard-tools iproute2 iputils-ping
+      - name: Test isolated encrypted link
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          keys="$(mktemp -d)"
+          cleanup() {
+            sudo ip netns del lab-left 2>/dev/null || true
+            sudo ip netns del lab-right 2>/dev/null || true
+            rm -rf "$keys"
+          }
+          trap cleanup EXIT
+          wg genkey > "$keys/left"
+          wg genkey > "$keys/right"
+          left_pub="$(wg pubkey < "$keys/left")"
+          right_pub="$(wg pubkey < "$keys/right")"
+          sudo ip netns add lab-left
+          sudo ip netns add lab-right
+          sudo ip link add lab-vl type veth peer name lab-vr
+          sudo ip link set lab-vl netns lab-left
+          sudo ip link set lab-vr netns lab-right
+          sudo ip -n lab-left address add 192.0.2.1/30 dev lab-vl
+          sudo ip -n lab-right address add 192.0.2.2/30 dev lab-vr
+          sudo ip -n lab-left link set lab-vl up
+          sudo ip -n lab-right link set lab-vr up
+          sudo ip -n lab-left link add wg0 type wireguard
+          sudo ip -n lab-right link add wg0 type wireguard
+          sudo ip netns exec lab-left wg set wg0 private-key "$keys/left" listen-port 51820 peer "$right_pub" allowed-ips 10.77.0.2/32 endpoint 192.0.2.2:51820
+          sudo ip netns exec lab-right wg set wg0 private-key "$keys/right" listen-port 51820 peer "$left_pub" allowed-ips 10.77.0.1/32 endpoint 192.0.2.1:51820
+          sudo ip -n lab-left address add 10.77.0.1/30 dev wg0
+          sudo ip -n lab-right address add 10.77.0.2/30 dev wg0
+          sudo ip -n lab-left link set wg0 up
+          sudo ip -n lab-right link set wg0 up
+          # No default routes, public listeners, internet forwarding or NAT.
+          test -z "$(sudo ip -n lab-left route show default)"
+          test -z "$(sudo ip -n lab-right route show default)"
+          sudo ip netns exec lab-left ping -I wg0 -c 3 -W 3 10.77.0.2
+          sudo ip netns exec lab-right ping -I wg0 -c 3 -W 3 10.77.0.1
+          sudo ip netns exec lab-left wg show wg0 latest-handshakes | awk '$2 > 0 { ok=1 } END { exit !ok }'
+          echo 'Isolated encrypted link and bidirectional traffic verified.'
