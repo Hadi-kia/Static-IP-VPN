@@ -17,6 +17,9 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -81,7 +84,7 @@ public class MainActivity extends Activity {
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setPadding(dp(16),dp(48),dp(16),dp(40)); scroll.addView(root);
         TextView title=label("VEPEN",32,Color.WHITE); title.setTypeface(null,Typeface.BOLD); root.addView(title);
-        root.addView(label("نسخه آموزشی ۰.۳.۰ • آزمایش محلی VPN",15,0xFF94A3B8));
+        root.addView(label("نسخه آموزشی ۰.۳.۱ • آزمایش محلی VPN",15,0xFF94A3B8));
         LinearLayout network=panel(root);
         status=label("تونل VPN: غیرفعال",19,0xFF38BDF8); network.addView(status);
         Button check=new Button(this); check.setText("بررسی اینترنت دستگاه"); check.setOnClickListener(v->checkNetwork()); network.addView(check);
@@ -94,6 +97,15 @@ public class MainActivity extends Activity {
         LinearLayout apps=panel(root); apps.addView(label("انتخاب نرم‌افزارها",20,Color.WHITE));
         count=label("",16,0xFF38BDF8); apps.addView(count);
         apps.addView(label("انتخاب‌ها فقط روی گوشی ذخیره می‌شوند؛ مسیر ترافیک تغییر نمی‌کند.",13,0xFFCBD5E1));
+        EditText search=new EditText(this);
+        search.setSingleLine(true); search.setHint("جست‌وجوی نام نرم‌افزار…");
+        search.setTextColor(Color.WHITE); search.setHintTextColor(0xFF94A3B8);
+        search.setTextSize(16); search.setPadding(dp(12),dp(10),dp(12),dp(10));
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        apps.addView(search,new LinearLayout.LayoutParams(-1,-2));
+        TextView empty=label("نتیجه‌ای یافت نشد.",14,0xFFCBD5E1);
+        empty.setVisibility(View.GONE); apps.addView(empty);
+        ArrayList<CheckBox> appRows=new ArrayList<>();
         Intent launcher=new Intent(Intent.ACTION_MAIN); launcher.addCategory(Intent.CATEGORY_LAUNCHER);
         ArrayList<ResolveInfo> list=new ArrayList<>(getPackageManager().queryIntentActivities(launcher,0));
         list.sort(Comparator.comparing(r->r.loadLabel(getPackageManager()).toString(),String.CASE_INSENSITIVE_ORDER));
@@ -108,12 +120,31 @@ public class MainActivity extends Activity {
                 if(checked) selected.add(pkg); else selected.remove(pkg);
                 prefs.edit().putStringSet("selected_apps",new HashSet<>(selected)).apply(); updateCount();
             });
+            box.setTag(pkg);
+            appRows.add(box);
             apps.addView(box);
         }
         selected.retainAll(shown);
         prefs.edit().putStringSet("selected_apps",new HashSet<>(selected)).apply();
         updateCount();
-        if(shown.isEmpty()) apps.addView(label("برنامه قابل نمایش یافت نشد.",14,Color.WHITE));
+        if(shown.isEmpty()) empty.setVisibility(View.VISIBLE);
+        search.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence s,int start,int before,int count){
+                String q=s.toString().trim().toLowerCase(Locale.ROOT).replace('ي','ی').replace('ك','ک');
+                int visible=0;
+                for(CheckBox row:appRows){
+                    String name=row.getText().toString().toLowerCase(Locale.ROOT).replace('ي','ی').replace('ك','ک');
+                    String pkg=String.valueOf(row.getTag()).toLowerCase(Locale.ROOT);
+                    boolean match=name.contains(q)||pkg.contains(q);
+                    row.setVisibility(match?View.VISIBLE:View.GONE);
+                    if(match)visible++;
+                }
+                empty.setVisibility(visible==0?View.VISIBLE:View.GONE);
+            }
+            @Override public void afterTextChanged(Editable s){}
+        });
+        root.setFocusableInTouchMode(true); root.requestFocus();
         LinearLayout power=panel(root);
         power.addView(label("مصرف انرژی",19,Color.WHITE));
         power.addView(label("بدون سرویس پس‌زمینه؛ آمار فقط هنگام نمایش صفحه هر ۵ ثانیه به‌روز می‌شود.",14,0xFFCBD5E1));
